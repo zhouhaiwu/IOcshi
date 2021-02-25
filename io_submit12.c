@@ -19,11 +19,6 @@ void unix_error(char *msg) {
     exit(0);
 }
 
-if(ftruncate(output_fd, 6442450944) < 0) {    //  6 * 1024 * 1024 * 1024 
-    perror("ftruncate error");
-    return -1; //初始化文件大小
-}
-
 pid_t Fork(void) {
     pid_t pid;
 
@@ -101,7 +96,7 @@ void main(int args, void *argv[])
     int a;
     int per;
 
-    if (args < 3) {
+    if (args <= 3) {
         printf("the number of param is wrong\n");
         exit(1);
     }
@@ -111,7 +106,7 @@ void main(int args, void *argv[])
         exit(1);
     }*/
 
-    printf("srcfd = %d\n", srcfd);
+    //printf("srcfd = %d\n", srcfd);
 
     /*lseek(srcfd, 0, SEEK_SET); //文件开头
     write(srcfd, "abcdefg", length);
@@ -126,8 +121,13 @@ void main(int args, void *argv[])
         printf("open odsfile error\n");
         exit(1);
     }
+    if(ftruncate(odsfd, 6442450944) < 0) {    //  6 * 1024 * 1024 * 1024 
+        perror("ftruncate error");
+        //return -1; 
+        exit(1);//初始化文件大小
+    }
     //per = argv[2];
-    for(i=0; i < 10; i++) {
+    for(i=0; i < (int)argv[3]; i++) {
         if ((pid = Fork()) == 0) {
             //生成随机数
             //srand((unsigned)time(NULL));
@@ -148,7 +148,7 @@ void main(int args, void *argv[])
                 printf("io out of memeory\n");
                 exit(1);
             }
-            if(a >= argv[2]) {
+            if((char)a >= argv[2]) {
                 io_prep_pread(io, srcfd, buff, iosize, offset);
                 io_set_callback(io, rd_done);
             }
