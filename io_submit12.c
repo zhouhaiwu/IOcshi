@@ -127,7 +127,7 @@ void main(int args, void *argv[])
         exit(1);//初始化文件大小
     }
     //per = argv[2];
-    for(i=0; i < (int)argv[3]; i++) {
+    for(i=0; i < atoi(argv[3]); i++) {
         if ((pid = Fork()) == 0) {
             //生成随机数
             //srand((unsigned)time(NULL));
@@ -148,7 +148,7 @@ void main(int args, void *argv[])
                 printf("io out of memeory\n");
                 exit(1);
             }
-            if((char)a >= argv[2]) {
+            if(a >= atoi(argv[2])) {
                 io_prep_pread(io, srcfd, buff, iosize, offset);
                 io_set_callback(io, rd_done);
             }
