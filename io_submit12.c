@@ -83,7 +83,7 @@ static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
 
 int main(int args, void *argv[])
 {
-    pid_t pid;
+    pid_t pid[atoi(argv[3])];
     pid_t retpid;
     int length = sizeof("abcdefg");
     char *content = (char *)malloc(length);
@@ -132,7 +132,7 @@ int main(int args, void *argv[])
     }
     //per = argv[2];
     for(i=0; i < atoi(argv[3]); i++) {
-        if ((pid = Fork()) == 0) {
+        if ((pid[i] = Fork()) == 0) {
             //生成随机数
             //srand((unsigned)time(NULL));
             a = (rand() + i * 10)% 100;
@@ -197,13 +197,13 @@ int main(int args, void *argv[])
             for (i = 0; i < num; i++) {
                 cb = (io_callback_t) events[i].data;
                 struct iocb *io = events[i].obj;
-                printf("events[%d].data = %s, res = %d, res2 = %d \n", i, cb, events[i].res, events[i].res2);
+                printf("events[%d].data = %x, res = %d, res2 = %d \n", i, cb, events[i].res, events[i].res2);
                 cb(myctx, io, events[i].res, events[i].res2);
             }
         }
     }
 
-    while ((retpid = waitpid(pid, &status, WNOHANG)) > 0) { //非阻塞模式
+    while ((retpid = waitpid(pid[i++], &status, WNOHANG)) > 0) { //非阻塞模式
         b[k] = 1024;
         k++;
         if (WIFEXITED(status)) {
