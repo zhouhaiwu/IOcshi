@@ -59,7 +59,7 @@ static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
     }
 
     
-    tmp = posix_memalign((void **)&wrbuff, getpagesize(), AIO_BLKSIZE);
+    /*tmp = posix_memalign((void **)&wrbuff, getpagesize(), AIO_BLKSIZE);
     if (tmp < 0) {
         printf("posix_memalign222 \n");
         exit(1);
@@ -69,16 +69,16 @@ static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
 
     printf("wrbuff - len = %d:%s \n", strlen(wrbuff), wrbuff);
     printf("wrbuff_len = %d \n", strlen(wrbuff));
-    free(buf);
+    free(buf);*/
 
     //io_prep_pwrite(iocb, odsfd, wrbuff, iosize, offset);
     //设置回调函数
     //io_set_callback(iocb, wr_done);
 
-    if (1 != (res = io_submit(ctx, 1, &iocb)))
+    /*if (1 != (res = io_submit(ctx, 1, &iocb)))
         printf("io_submit write error \n");
 
-    printf("\nsubmit %d write request \n", res);
+    printf("\nsubmit %d write request \n", res);*/
 }
 
 void main(int args, void *argv[])
@@ -89,6 +89,7 @@ void main(int args, void *argv[])
     char *content = (char *)malloc(length);
     io_context_t myctx;
     int rc;
+    int res;
     char *buff = NULL;
     int offset = 0;
     int num, i, tmp; // 变量i是创建多少个子系统
@@ -117,13 +118,13 @@ void main(int args, void *argv[])
     printf("write in the srcfile successful, content is %s\n", content);*/
 
     if ((odsfd = open(argv[1], O_RDWR | O_DIRECT, 0644)) < 0) {
-        close(srcfd);
+        close(odsfd);
         printf("open odsfile error\n");
         exit(1);
     }
-    if(ftruncate(odsfd, 6442450944) < 0) {    //  6 * 1024 * 1024 * 1024 
+    if(ftruncate(odsfd, 6442450944) < 0) {    //  6 * 1024 * 1024 * 1024
         perror("ftruncate error");
-        //return -1; 
+        //return -1;
         exit(1);//初始化文件大小
     }
     //per = argv[2];
@@ -131,7 +132,7 @@ void main(int args, void *argv[])
         if ((pid = Fork()) == 0) {
             //生成随机数
             //srand((unsigned)time(NULL));
-            a = rand() % 100;
+            a = (rand() + i * 10)% 100;
             printf("a:%d\n", a);
         
             memset(&myctx, 0, sizeof(myctx));
@@ -149,25 +150,39 @@ void main(int args, void *argv[])
                 exit(1);
             }
             if(a >= atoi(argv[2])) {
-                io_prep_pread(io, srcfd, buff, iosize, offset);
+                printf("START...\n \n");
+                io_prep_pread(io, odsfd, buff, iosize, offset);
                 io_set_callback(io, rd_done);
+                rc = io_submit(myctx, 1, &io);
+
+                if (rc < 0)
+                    printf("io_submit read error\n");
+
+                printf("\nsubmit %d read request\n", rc);
+
             }
             //设置回调函数
             else {
+                printf("START...\n \n");
                 io_prep_pwrite(io, odsfd, buff, iosize, offset);
                 //设置回调函数
                 io_set_callback(io, wr_done);
                 //io_set_callback(io, rd_done);
+                 if (1 != (res = io_submit(myctx, 1, &io))) {
+                    printf("io_submit write error \n");
+                 }
+
+                printf("\nsubmit %d write request \n", res);
             }
 
-            printf("START...\n \n");
+            /*printf("START...\n \n");
 
             rc = io_submit(myctx, 1, &io);
 
             if (rc < 0)
                 printf("io_submit read error\n");
 
-            printf("\nsubmit %d read request\n", rc);
+            printf("\nsubmit %d read request\n", rc);*/
 
             //m_io_queue_run(myctx);
 
@@ -185,10 +200,9 @@ void main(int args, void *argv[])
         }
     }
 
-    while ((retpid = waitpid(pid, &status, WNOHANG)) == 0) { //非阻塞模式
+    while ((retpid = waitpid(pid, &status, WNOHANG)) > 0) { //非阻塞模式
         if (WIFEXITED(status)) {
             printf("child %d terminated normally with exit status=%d\n", retpid, WEXITSTATUS(status));
-            break;
         }
         else
         {
