@@ -81,7 +81,7 @@ static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
     printf("\nsubmit %d write request \n", res);*/
 }
 
-void main(int args, void *argv[])
+int main(int args, void *argv[])
 {
     pid_t pid;
     pid_t retpid;
@@ -96,6 +96,9 @@ void main(int args, void *argv[])
     int status;
     int a;
     int per;
+    int k; // k 数组的元素下标
+
+    int b[10] = {};  //  数组用来存放IO大小
 
     if (args <= 3) {
         printf("the number of param is wrong\n");
@@ -139,7 +142,7 @@ void main(int args, void *argv[])
             io_queue_init(AIO_MAXIO, &myctx);
 
             struct iocb *io = (struct iocb *)malloc(sizeof(struct iocb));
-            int iosize = AIO_BLKSIZE;
+            int iosize = AIO_BLKSIZE; // 1024 
             tmp = posix_memalign((void **)&buff, getpagesize(), AIO_BLKSIZE);
             if (tmp < 0) {
                 printf("posix_memalign error\n");
@@ -194,13 +197,15 @@ void main(int args, void *argv[])
             for (i = 0; i < num; i++) {
                 cb = (io_callback_t) events[i].data;
                 struct iocb *io = events[i].obj;
-                printf("events[%d].data = %x, res = %d, res2 = %d \n", i, cb, events[i].res, events[i].res2);
+                printf("events[%d].data = %s, res = %d, res2 = %d \n", i, cb, events[i].res, events[i].res2);
                 cb(myctx, io, events[i].res, events[i].res2);
             }
         }
     }
 
     while ((retpid = waitpid(pid, &status, WNOHANG)) > 0) { //非阻塞模式
+        b[k] = 1024;
+        k++;
         if (WIFEXITED(status)) {
             printf("child %d terminated normally with exit status=%d\n", retpid, WEXITSTATUS(status));
         }
@@ -214,4 +219,8 @@ void main(int args, void *argv[])
     if (errno != ECHILD) {
         unix_error("waitpid error");
     }
+    for(k; k>0;k--) {
+        printf("a[]:%d", b[k]);
+    }
+    return 0;
 }
