@@ -1,0 +1,74 @@
+C语言计算代码执行时间的办法
+
+在调试分析性能的时候，我们经常需要检查一段代码执行花了多少时间；下面的例子说明在C语言里面如何计算代码的执行时间。
+
+有两个和计算执行时间相关的函数。
+
+1、clock()
+返回程序到目前的CPU执行时间，这个值需要除以CLOCKS_PER_SEC才能得到真正的用户时间，即秒。
+2、gettimeofday()
+得到当前的时间精确到微秒。
+注意两种的区别，clock()得到的是CPU时间，如果一段代码大部分时间是在sleep或者等待I/O，那么他的CPU时间是非常短的，后面的例子我们看到一个sleep(10)函数执行得到的CPU时间几乎为零，但是通过gettimeofday()得到真实的时间。
+
+看一个例子：
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
+
+void work_sleep() {
+    sleep(2);
+}
+
+void work_calc()
+{
+    int i,j;
+    double v;
+    for (i = 0; i < 5000; i++) {
+        for (j = 0; j < 5000; j++) {
+            v = pow(1.1 + i + j, 2.2 + i + j);
+        }
+    }
+}
+
+int main(int argc, char * argv[]) {
+    clock_t clockstart, clockend;
+    struct timeval start, end;
+    int timeuse;
+
+    // sleep
+    clockstart = clock();
+    gettimeofday(&start, NULL);
+    work_sleep();
+    clockend = clock();
+    gettimeofday(&end, NULL);
+    timeuse = 1000000 * ( end.tv_sec - start.tv_sec ) + end.tv_usec - start.tv_usec;
+    printf("sleep clock time=%.3fs, timeofday=%.3fs\n", (double)(clockend-clockstart)/CLOCKS_PER_SEC, (double)timeuse/1000000);
+ 
+    // calc
+    clockstart = clock();
+    gettimeofday(&start, NULL);
+    work_calc();
+    clockend = clock();
+    gettimeofday(&end, NULL);
+    timeuse = 1000000 * ( end.tv_sec - start.tv_sec ) + end.tv_usec - start.tv_usec;
+    printf("calc  clock time=%.3fs, timeofday=%.3fs\n", (double)(clockend-clockstart)/CLOCKS_PER_SEC, (double)timeuse/1000000);
+}
+
+定义了两个函数，一个work_sleep()不干活，只sleep 2秒；另一个work_calc包含大量的浮点运算操作；我们看执行结果：
+
+$ gcc test.c -lm  
+$ time ./a.out 
+sleep clock time=0.000s, timeofday=2.000s
+calc  clock time=1.140s, timeofday=1.388s
+
+real    0m3.392s
+user    0m1.147s
+sys     0m0.003s
+
+我们可以看到：
+
+1、sleep的clock()时间几乎为0，因为他不占用CPU执行时间。
+2、timeofday计算的是函数开始到截至的时间差，不管函数干了什么内容。
+3、real的值差不多等于两个timeofday的和。
+4、user的值差不多等于两个clock的和。
