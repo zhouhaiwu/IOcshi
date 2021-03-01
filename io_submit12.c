@@ -7,9 +7,14 @@
 #include <errno.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/mman.h>
+#include <string.h>
 
-int srcfd = -1;
-int odsfd = -1;
+//int srcfd = -1;
+//int odsfd = -1;
+int srcfd[5] = {-1, -1, -1, -1, -1};
+//int b[10] = {};  //  数组用来存放IO大小
+const char *mysrc[5] = {"hello.txt", "hello1.txt", "hello2.txt", "hello3.txt", "hello4.txt"};
 
 #define AIO_BLKSIZE  1024
 #define AIO_MAXIO 64
@@ -83,7 +88,8 @@ static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
 
 int main(int args, void *argv[])
 {
-    pid_t pid[atoi(argv[3])];
+    pid_t pid[atoi(argv[2])];
+    pid_t pidt;
     pid_t retpid;
     int length = sizeof("abcdefg");
     char *content = (char *)malloc(length);
@@ -92,19 +98,42 @@ int main(int args, void *argv[])
     int res;
     char *buff = NULL;
     int offset = 0;
-    int num, i, tmp; // 变量i是创建多少个子系统
+    int num, i, tmp; // 变量i是创建多少个子进程
     int status;
-    int a;
+    int a; //随机数，通过a的大小，判断是读还是写
+    int b; // 随机读取哪个文件
     int per;
-    int k; // k 数组的元素下标
+    int k = 0; // k 数组的元素下标
+    int j = 0; //  变量j是统计子进程的个数
 
-    int b[10] = {};  //  数组用来存放IO大小
+    //int b[10] = {};  //  数组用来存放IO大小
+    int fd = shm_open("posixsm", O_CREAT | O_RDWR, 0666);  // 共享内存
+    ftruncate(fd, 0x400000); // 共享内存
 
-    if (args <= 3) {
+    char *p = mmap(NULL, 0x400000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    memset(p, 0, 0x400000);
+
+    if (args < 2) {
         printf("the number of param is wrong\n");
         exit(1);
     }
-
+    for(i=0; i<5; i++) {
+        printf("mysrc, %s\n", mysrc[i]);
+        /*if ((srcfd[i] = open(mysrc[i], O_RDWR)) < 0) {
+            printf("open srcfile error\n");
+            exit(1);
+        }*/ 
+        if ((srcfd[i] = open(mysrc[i], O_RDWR | O_DIRECT, 0644)) < 0) {
+            close(srcfd[i]);
+            printf("open odsfile error\n");
+            exit(1);
+        }
+        if(ftruncate(srcfd[i], 6442450944) < 0) {    //  6 * 1024 * 1024 * 1024
+            perror("ftruncate error");
+            //return -1;
+            exit(1);//初始化文件大小
+        }
+    }
     /*if ((srcfd = open(argv[1], O_RDWR)) < 0) {
         printf("open srcfile error\n");
         exit(1);
@@ -120,7 +149,7 @@ int main(int args, void *argv[])
 
     printf("write in the srcfile successful, content is %s\n", content);*/
 
-    if ((odsfd = open(argv[1], O_RDWR | O_DIRECT, 0644)) < 0) {
+    /*if ((odsfd = open(argv[1], O_RDWR | O_DIRECT, 0644)) < 0) {
         close(odsfd);
         printf("open odsfile error\n");
         exit(1);
@@ -130,14 +159,35 @@ int main(int args, void *argv[])
         //return -1;
         exit(1);//初始化文件大小
     }
+    if ((srcfd = open(argv[1], O_RDWR | O_DIRECT, 0644)) < 0) {
+        close(srcfd);
+        printf("open odsfile error\n");
+        exit(1);
+    }*/
+    /*if(ftruncate(srcfd, 6442450944) < 0) {    //  6 * 1024 * 1024 * 1024
+        perror("ftruncate error");
+        //return -1;
+        exit(1);//初始化文件大小
+    }*/
     //per = argv[2];
-    for(i=0; i < atoi(argv[3]); i++) {
-        if ((pid[i] = Fork()) == 0) {
+    if ((pidt = Fork()) == 0) {
+        while(1) {
+            sleep(1);
+            for(i=0; i < 10000; i++) {
+                printf("i:%d, b:%d\n", i, p[i]);
+            }
+        }
+    }
+    for(k=0; k < atoi(argv[2]); k++) {
+        if ((pid[k] = Fork()) == 0) {
             //生成随机数
             //srand((unsigned)time(NULL));
-            a = (rand() + i * 10)% 100;
+            a = rand()% 100;
             printf("a:%d\n", a);
-        
+
+            b = rand() % 4;
+            printf("b:%d\n", b); //  随机读取哪个文件
+
             memset(&myctx, 0, sizeof(myctx));
             io_queue_init(AIO_MAXIO, &myctx);
 
@@ -152,9 +202,10 @@ int main(int args, void *argv[])
                 printf("io out of memeory\n");
                 exit(1);
             }
-            if(a >= atoi(argv[2])) {
+            if(a >= atoi(argv[1])) {
                 printf("START...\n \n");
-                io_prep_pread(io, odsfd, buff, iosize, offset);
+                //io_prep_pread(io, odsfd, buff, iosize, offset);
+                io_prep_pread(io, b, buff, iosize, offset);
                 io_set_callback(io, rd_done);
                 rc = io_submit(myctx, 1, &io);
 
@@ -167,7 +218,8 @@ int main(int args, void *argv[])
             //设置回调函数
             else {
                 printf("START...\n \n");
-                io_prep_pwrite(io, odsfd, buff, iosize, offset);
+                //io_prep_pwrite(io, odsfd, buff, iosize, offset);
+                io_prep_pwrite(io, b, buff, iosize, offset);
                 //设置回调函数
                 io_set_callback(io, wr_done);
                 //io_set_callback(io, rd_done);
@@ -194,18 +246,40 @@ int main(int args, void *argv[])
 
             num = io_getevents(myctx, 1, AIO_MAXIO, events, NULL);
             printf("\n %d io_request completed \n \n", num);
+            p[k] = 1;
+            printf("k:%d, b-t:%d\n", k, p[k]);
             for (i = 0; i < num; i++) {
                 cb = (io_callback_t) events[i].data;
                 struct iocb *io = events[i].obj;
                 printf("events[%d].data = %x, res = %d, res2 = %d \n", i, cb, events[i].res, events[i].res2);
                 cb(myctx, io, events[i].res, events[i].res2);
             }
+            //b[i] = 1;
+            //printf("k:%d, b-t:%d\n", i, b[i]);
+            //k++;
+            exit(0);
         }
     }
-
-    while ((retpid = waitpid(pid[i++], &status, WNOHANG)) > 0) { //非阻塞模式
-        b[k] = 1024;
-        k++;
+    //i = 0;
+    while(j < atoi(argv[2])) {
+        if ((retpid = waitpid(pid[j], &status, WNOHANG)) > 0) {
+            printf("before j:%d\n", j);
+            j++;
+            printf("after j:%d\n", j);
+            if (WIFEXITED(status)) {
+                printf("child %d terminated normally with exit status=%d\n", retpid, WEXITSTATUS(status));
+            }
+            else {
+                printf("child %d terminated abnormally\n", retpid);
+            }
+        }
+        if ((retpid = waitpid(pid[j], &status, WNOHANG)) == 0) {
+            //printf("wait wait wait \n");
+        }
+    }
+    /*while ((retpid = waitpid(pid[i++], &status, WNOHANG)) > 0) { //非阻塞模式
+        //b[k] = 1024;
+        //k++;
         if (WIFEXITED(status)) {
             printf("child %d terminated normally with exit status=%d\n", retpid, WEXITSTATUS(status));
         }
@@ -214,13 +288,13 @@ int main(int args, void *argv[])
             printf("child %d terminated abnormally\n", retpid);
         }
         
-    }
+    }*/
     /* The only normal termination is if there are no more children */
     if (errno != ECHILD) {
         unix_error("waitpid error");
     }
-    for(k; k>0;k--) {
+    /*for(k; k>0;k--) {
         printf("a[]:%d", b[k]);
-    }
+    }*/
     return 0;
 }
