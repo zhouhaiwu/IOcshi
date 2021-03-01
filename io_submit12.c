@@ -91,6 +91,7 @@ int main(int args, void *argv[])
     pid_t pid[atoi(argv[2])];
     pid_t pidt;
     pid_t retpid;
+    pid_t retpidt;
     int length = sizeof("abcdefg");
     char *content = (char *)malloc(length);
     io_context_t myctx;
@@ -100,11 +101,16 @@ int main(int args, void *argv[])
     int offset = 0;
     int num, i, tmp; // 变量i是创建多少个子进程
     int status;
+    int statust;
     int a; //随机数，通过a的大小，判断是读还是写
     int b; // 随机读取哪个文件
     int per;
     int k = 0; // k 数组的元素下标
     int j = 0; //  变量j是统计子进程的个数
+
+    long    n = 10000000L;  //计算时间
+    clock_t start, finish;  //计算时间
+    double  duration;  //计算时间
 
     //int b[10] = {};  //  数组用来存放IO大小
     int fd = shm_open("posixsm", O_CREAT | O_RDWR, 0666);  // 共享内存
@@ -171,12 +177,15 @@ int main(int args, void *argv[])
     }*/
     //per = argv[2];
     if ((pidt = Fork()) == 0) {
+        sleep(1);
         while(1) {
-            sleep(1);
-            for(i=0; i < 10000; i++) {
-                printf("i:%d, b:%d\n", i, p[i]);
+            for(i=0; i < 2000; i++) {
+                if(p[i] == 1) {
+                    printf("i:%d, b:%d\n", i, p[i]);
+                }
             }
         }
+        //exit(0);
     }
     for(k=0; k < atoi(argv[2]); k++) {
         if ((pid[k] = Fork()) == 0) {
@@ -188,6 +197,8 @@ int main(int args, void *argv[])
             b = rand() % 4;
             printf("b:%d\n", b); //  随机读取哪个文件
 
+            printf( "Reckon by time\n");  
+            start = clock();  // 获取IO时间
             memset(&myctx, 0, sizeof(myctx));
             io_queue_init(AIO_MAXIO, &myctx);
 
@@ -205,13 +216,14 @@ int main(int args, void *argv[])
             if(a >= atoi(argv[1])) {
                 printf("START...\n \n");
                 //io_prep_pread(io, odsfd, buff, iosize, offset);
-                io_prep_pread(io, b, buff, iosize, offset);
+                io_prep_pread(io, srcfd[b], buff, iosize, offset);
                 io_set_callback(io, rd_done);
                 rc = io_submit(myctx, 1, &io);
 
-                if (rc < 0)
+                if (rc < 0) {
                     printf("io_submit read error\n");
-
+                    exit(1);
+                }
                 printf("\nsubmit %d read request\n", rc);
 
             }
@@ -219,17 +231,21 @@ int main(int args, void *argv[])
             else {
                 printf("START...\n \n");
                 //io_prep_pwrite(io, odsfd, buff, iosize, offset);
-                io_prep_pwrite(io, b, buff, iosize, offset);
+                io_prep_pwrite(io, srcfd[b], buff, iosize, offset);
                 //设置回调函数
                 io_set_callback(io, wr_done);
                 //io_set_callback(io, rd_done);
                  if (1 != (res = io_submit(myctx, 1, &io))) {
                     printf("io_submit write error \n");
+                    exit(1);
                  }
 
                 printf("\nsubmit %d write request \n", res);
             }
-
+            //finish = clock();  
+            //duration = (double)(finish - start) / CLOCKS_PER_SEC;
+            //duration = (double)(finish - start);
+            //printf( "%0.10f seconds\n", duration);
             /*printf("START...\n \n");
 
             rc = io_submit(myctx, 1, &io);
@@ -243,8 +259,16 @@ int main(int args, void *argv[])
 
             struct io_event events[AIO_MAXIO];
             io_callback_t cb;
-
+            //sleep(60);
             num = io_getevents(myctx, 1, AIO_MAXIO, events, NULL);
+            //while( n-- ) ;
+            finish = clock();  // 获取IO时间
+            duration = (double)(finish - start) / CLOCKS_PER_SEC;
+            //duration = (double)(finish - start);
+            printf( "%f seconds\n", (double)start);
+            printf( "%f seconds\n", (double)finish);
+            printf( "%f seconds\n", duration);
+
             printf("\n %d io_request completed \n \n", num);
             p[k] = 1;
             printf("k:%d, b-t:%d\n", k, p[k]);
@@ -260,7 +284,19 @@ int main(int args, void *argv[])
             exit(0);
         }
     }
-    //i = 0;
+
+    /*if ((pidt = Fork()) == 0) {
+        sleep(1);
+        while(1) {
+            for(i=0; i < 2000; i++) {
+                if(p[i] == 1) {
+                    printf("i:%d, b:%d\n", i, p[i]);
+                }
+            }
+        }
+        //exit(0);
+    }*/
+
     while(j < atoi(argv[2])) {
         if ((retpid = waitpid(pid[j], &status, WNOHANG)) > 0) {
             printf("before j:%d\n", j);
