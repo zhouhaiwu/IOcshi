@@ -9,6 +9,7 @@
 #include <time.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <math.h>
 
 //int srcfd = -1;
 //int odsfd = -1;
@@ -108,10 +109,12 @@ int main(int args, void *argv[])
     int k = 0; // k 数组的元素下标
     int j = 0; //  变量j是统计子进程的个数
 
-    long    n = 10000000L;  //计算时间
-    clock_t start, finish;  //计算时间
-    double  duration;  //计算时间
+    //long    n = 10000000L;  //计算时间
+    //clock_t start, finish;  //计算时间
+    //double  duration;  //计算时间
 
+    struct timeval start, end; //获取AIO时间
+    int timeuse; //获取AIO时间
     //int b[10] = {};  //  数组用来存放IO大小
     int fd = shm_open("posixsm", O_CREAT | O_RDWR, 0666);  // 共享内存
     ftruncate(fd, 0x400000); // 共享内存
@@ -179,7 +182,7 @@ int main(int args, void *argv[])
     if ((pidt = Fork()) == 0) {
         sleep(1);
         while(1) {
-            for(i=0; i < 2000; i++) {
+            for(i=0; i < atoi(argv[2]); i++) {
                 if(p[i] == 1) {
                     printf("i:%d, b:%d\n", i, p[i]);
                 }
@@ -198,7 +201,8 @@ int main(int args, void *argv[])
             printf("b:%d\n", b); //  随机读取哪个文件
 
             printf( "Reckon by time\n");  
-            start = clock();  // 获取IO时间
+            //start = clock();  // 获取IO时间
+            gettimeofday(&start, NULL);
             memset(&myctx, 0, sizeof(myctx));
             io_queue_init(AIO_MAXIO, &myctx);
 
@@ -262,14 +266,18 @@ int main(int args, void *argv[])
             //sleep(60);
             num = io_getevents(myctx, 1, AIO_MAXIO, events, NULL);
             //while( n-- ) ;
-            finish = clock();  // 获取IO时间
-            duration = (double)(finish - start) / CLOCKS_PER_SEC;
+            //finish = clock();  // 获取IO时间
+            //duration = (double)(finish - start) / CLOCKS_PER_SEC;
             //duration = (double)(finish - start);
-            printf( "%f seconds\n", (double)start);
-            printf( "%f seconds\n", (double)finish);
-            printf( "%f seconds\n", duration);
+            //printf( "%f seconds\n", (double)start);
+            //printf( "%f seconds\n", (double)finish);
+            //printf( "%f seconds\n", duration);
 
             printf("\n %d io_request completed \n \n", num);
+
+            gettimeofday(&end, NULL);
+            timeuse = 1000000 * ( end.tv_sec - start.tv_sec ) + end.tv_usec - start.tv_usec;
+            printf("timeofday=%.3fs\n", (double)timeuse/1000000);
             p[k] = 1;
             printf("k:%d, b-t:%d\n", k, p[k]);
             for (i = 0; i < num; i++) {
